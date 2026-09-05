@@ -19,7 +19,7 @@ cronómetros de móvil ni cuentas mentales.
 | **Encender** | Sacude el CoreS3 con ganas (varios meneos seguidos) |
 | **Apagar** | Sopla fuerte sobre los micrófonos del lateral |
 | **Se consume** | Sola, a los 60 minutos |
-| **Pantalla en negro** | Un toque en la pantalla; otro toque la devuelve |
+| **Armar el soplido** | Un toque en la pantalla; otro vuelve a protegerla |
 
 La barra **no muestra minutos**, solo cuánta antorcha queda: 200 fragmentos,
 uno cada 18 segundos. En el último 10% la llama se encoge y se apaga a
@@ -40,10 +40,18 @@ en vivo y se exige superarlo `BLOW_FLOOR_RATIO` (6×) durante
 que en un bar, y hay que soplar de verdad: medio segundo largo descarta
 palmadas, plosivas y golpes en la mesa, que duran una décima.
 
-**Pantalla en negro.** Además de pintarla de negro apaga la
-retroiluminación, para no iluminar la mesa en una partida a oscuras. En ese
-modo no se dibuja nada ni se leen los sensores: solo responde al siguiente
-toque.
+**Candado del soplido.** Una antorcha recién encendida **no se puede apagar
+soplando**: hace falta tocar la pantalla para armarla. El candado bajo la
+barra lo dice sin palabras — cerrado y apagado significa a salvo, abierto y
+ámbar significa que el próximo soplido la apaga.
+
+Es la defensa contra el problema de verdad de este cacharro: el micrófono no
+distingue un soplido de cualquier otro ruido fuerte y cercano, así que en vez
+de afinar umbrales hasta la extenuación, la antorcha simplemente no escucha
+hasta que tú se lo pides. Apagarla pasa a ser deliberado: tocar y soplar.
+
+El candado vuelve a ponerse solo cada vez que se enciende una antorcha nueva,
+así que no se queda armado de una escena para otra.
 
 **Sin parpadeos.** Cada cuadro se compone entero en un lienzo en PSRAM y se
 vuelca de golpe.
@@ -55,12 +63,11 @@ cualquiera es una línea:
 
 | Decisión | Valor | Alternativa |
 |---|---|---|
-| Con la pantalla en negro **el tiempo sigue corriendo** | `BLACKOUT_PAUSES_TIMER = false` | `true` congela el contador |
-| La pantalla en negro **apaga la retroiluminación** | `BLACKOUT_TURNS_OFF_BACKLIGHT = true` | `false` solo pinta negro |
+| Cada antorcha **nace protegida**: hay que tocar para poder soplarla | `BLOW_LOCKED_ON_LIGHT = true` | `false` nace armada y el toque sirve para proteger |
 | Soplar **apaga la antorcha del todo**: la siguiente sacudida enciende una nueva de 60 min | `RESUME_AFTER_BLOWOUT = false` | `true` guarda el tiempo restante y lo reanuda al reencender |
 | Los rótulos están en inglés (`SHAKE TO LIGHT`, `BURNED OUT`) | — | `drawMessage(...)` en `src/main.cpp` |
 
-La tercera fila importa si en tu mesa apagáis la antorcha para *guardarla*:
+La segunda fila importa si en tu mesa apagáis la antorcha para *guardarla*:
 con `RESUME_AFTER_BLOWOUT = true` soplar deja de gastar antorcha.
 
 ## Compilar y flashear

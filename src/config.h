@@ -43,13 +43,10 @@ static constexpr uint32_t TOUCH_DEBOUNCE_MS = 300;
 static constexpr uint32_t RELIGHT_LOCKOUT_MS = 1500;
 
 // --- Opciones de comportamiento -------------------------------------------
-// Pantalla en negro: ademas de pintar de negro, apaga la retroiluminacion
-// para no iluminar la mesa. Ponlo en false si prefieres solo pintar negro.
-static constexpr bool BLACKOUT_TURNS_OFF_BACKLIGHT = true;
-
-// El contador sigue corriendo en tiempo real con la pantalla en negro.
-// Ponlo en true si prefieres que la pantalla en negro congele el tiempo.
-static constexpr bool BLACKOUT_PAUSES_TIMER = false;
+// Al encender, soplar viene bloqueado: hay que tocar la pantalla para armarlo.
+// Asi ningun ruido de mesa puede apagar la antorcha sin querer. Ponlo en
+// false si prefieres que nazca armada y el toque sirva para proteger.
+static constexpr bool BLOW_LOCKED_ON_LIGHT = true;
 
 // Al soplar, la antorcha se apaga por completo y la proxima sacudida arranca
 // una antorcha nueva de 60 min. Ponlo en true si en tu mesa preferis que
@@ -66,5 +63,9 @@ static constexpr int   ART_TOP_Y  = 6;    // borde superior del dibujo
 static constexpr float BAR_WIDTH_RATIO = 0.85f;                       // 85% del ancho
 static constexpr int   BAR_W = (int)(SCREEN_W * BAR_WIDTH_RATIO);     // 272 px
 static constexpr int   BAR_X = (SCREEN_W - BAR_W) / 2;                // 24
-static constexpr int   BAR_Y = 196;
-static constexpr int   BAR_H = 26;
+static constexpr int   BAR_Y = 190;
+static constexpr int   BAR_H = 24;
+
+// Candado, centrado bajo la barra.
+static constexpr int   LOCK_SCALE = 3;
+static constexpr int   LOCK_Y     = 216;

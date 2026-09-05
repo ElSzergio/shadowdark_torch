@@ -10,8 +10,9 @@
 //                 No se muestran los minutos, solo la barra.
 //    * APAGAR   : sopla fuerte sobre los microfonos, o espera a que se agote.
 //                 Al agotarse hay que repetir el proceso para encenderla.
-//    * PANTALLA : un toque la pone en negro y congela la vista; otro toque
-//                 vuelve a la vista anterior.
+//    * CANDADO  : soplar solo apaga si esta armado. Un toque en la pantalla
+//                 arma y desarma; al encender nace bloqueado, para que ningun
+//                 ruido de mesa la apague sin querer.
 //
 //  La vista se refresca cada 250 ms, animando la llama.
 // ---------------------------------------------------------------------------
@@ -42,10 +43,9 @@ uint32_t g_saved_remaining_ms = 0;  // tiempo guardado al soplar (si se reanuda)
 uint32_t g_out_since_ms       = 0;  // cuando se apago (para el humo)
 uint32_t g_lockout_until_ms   = 0;  // no leer sensores justo tras apagarse
 
-// Pantalla en negro
-bool     g_blackout            = false;
-uint32_t g_blackout_started_ms = 0;
-uint32_t g_last_touch_ms       = 0;
+// Candado del soplido: mientras esta puesto, soplar no apaga la antorcha.
+bool     g_blow_locked   = BLOW_LOCKED_ON_LIGHT;
+uint32_t g_last_touch_ms = 0;
 
 uint32_t g_last_frame_ms = 0;
 uint32_t g_frame_counter = 0;
@@ -104,6 +104,7 @@ void lightTorch(uint32_t now) {
     g_burn_budget_ms     = budget;
     g_burn_start_ms      = now;
     g_state              = State::Burning;
+    g_blow_locked        = BLOW_LOCKED_ON_LIGHT;  // cada antorcha nace a salvo
     Serial.printf("[torch] encendida, %lu ms\n", (unsigned long)budget);
 }
 
@@ -329,6 +330,21 @@ void drawMessage(const char* line1, const char* line2, bool blink_line2) {
     }
 }
 
+// Candado bajo la barra: cerrado y apagado = soplar no apaga; abierto y
+// encendido = el proximo soplido la apaga.
+void drawLock(bool locked) {
+    const char* const* art = locked ? LOCK_CLOSED : LOCK_OPEN;
+    const uint16_t col = locked ? rgb({74, 66, 58}) : rgb({255, 190, 70});
+    const int x0 = (SCREEN_W - LOCK_COLS * LOCK_SCALE) / 2;
+    for (int r = 0; r < LOCK_ROWS; ++r) {
+        for (int c = 0; c < LOCK_COLS; ++c) {
+            if (art[r][c] != '#') continue;
+            g_gfx->fillRect(x0 + c * LOCK_SCALE, LOCK_Y + r * LOCK_SCALE,
+                            LOCK_SCALE, LOCK_SCALE, col);
+        }
+    }
+}
+
 void render(uint32_t now) {
     ++g_frame_counter;
     g_gfx->fillScreen(TFT_BLACK);
@@ -350,6 +366,7 @@ void render(uint32_t now) {
         drawArtRows(TORCH_FLAME[f], ART_FLAME_ROWS, ART_TOP_Y, dim);
         drawArtRows(TORCH_BODY, ART_BODY_ROWS, BODY_Y, 1.0f);
         drawBar(segs, true);
+        drawLock(g_blow_locked);
     } else {
         drawArtRows(TORCH_HEAD_OUT, ART_FLAME_ROWS, ART_TOP_Y, 1.0f);
         drawArtRows(TORCH_BODY, ART_BODY_ROWS, BODY_Y, 0.85f);
@@ -371,35 +388,20 @@ void render(uint32_t now) {
 }
 
 // ===========================================================================
-//  Pantalla en negro (un toque apaga, otro reanuda)
+//  Candado del soplido (un toque arma, otro protege)
 // ===========================================================================
-void enterBlackout(uint32_t now) {
-    g_blackout            = true;
-    g_blackout_started_ms = now;
-    M5.Display.fillScreen(TFT_BLACK);
-    if (BLACKOUT_TURNS_OFF_BACKLIGHT) M5.Display.setBrightness(0);
-    Serial.println("[screen] negro");
-}
-
-void exitBlackout(uint32_t now) {
-    g_blackout = false;
-    if (BLACKOUT_PAUSES_TIMER && g_state == State::Burning) {
-        g_burn_start_ms += (now - g_blackout_started_ms);  // el tiempo no conto
-    }
-    g_blow_ms     = 0;  // no arrastres lecturas viejas del microfono
-    g_mic_primed  = false;
-    g_shake_peaks = 0;
-    if (BLACKOUT_TURNS_OFF_BACKLIGHT) M5.Display.setBrightness(SCREEN_BRIGHTNESS);
-    g_last_frame_ms = 0;  // fuerza un repintado inmediato
-    Serial.println("[screen] vista reanudada");
-}
-
 void pollTouch(uint32_t now) {
     const auto t = M5.Touch.getDetail();
     if (!t.wasPressed()) return;
     if (now - g_last_touch_ms < TOUCH_DEBOUNCE_MS) return;
     g_last_touch_ms = now;
-    g_blackout ? exitBlackout(now) : enterBlackout(now);
+
+    g_blow_locked = !g_blow_locked;
+    // Al armar, empieza a contar el soplido desde cero: lo que el microfono
+    // hubiera acumulado antes no cuenta.
+    g_blow_ms = 0;
+    g_last_frame_ms = 0;  // repinta el candado en el acto, sin esperar al cuadro
+    Serial.printf("[soplido] %s\n", g_blow_locked ? "bloqueado" : "armado");
 }
 
 }  // namespace
@@ -449,14 +451,6 @@ void loop() {
 
     pollTouch(now);
 
-    if (g_blackout) {
-        // Pantalla en negro: no se dibuja ni se leen sensores. El contador
-        // sigue corriendo salvo que BLACKOUT_PAUSES_TIMER lo pida.
-        if (!BLACKOUT_PAUSES_TIMER) updateTimer(now);
-        delay(5);
-        return;
-    }
-
     updateTimer(now);
 
     const bool shaken = pollShake(now);
@@ -464,7 +458,7 @@ void loop() {
 
     if ((int32_t)(now - g_lockout_until_ms) >= 0) {
         if (g_state == State::Burning) {
-            if (blown) extinguish(now, OutReason::Blown);
+            if (blown && !g_blow_locked) extinguish(now, OutReason::Blown);
         } else if (shaken) {
             lightTorch(now);
         }

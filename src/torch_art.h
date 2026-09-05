@@ -118,6 +118,36 @@ static const char* const TORCH_BODY[ART_BODY_ROWS] = {
     ".....HHhhHH.....",
 };
 
+// --- Candado ---------------------------------------------------------------
+// Indica si soplar puede apagar la antorcha. Cerrado = a salvo de accidentes,
+// abierto = el proximo soplido la apaga. Se dibuja con un color plano, asi
+// que aqui solo hace falta la silueta.
+static constexpr int LOCK_COLS = 8;
+static constexpr int LOCK_ROWS = 8;
+
+static const char* const LOCK_CLOSED[LOCK_ROWS] = {
+    "..####..",
+    ".##..##.",
+    ".##..##.",
+    "########",
+    "###..###",
+    "###..###",
+    "########",
+    "########",
+};
+
+// El arco abierto, girado hacia la derecha y suelto del cuerpo.
+static const char* const LOCK_OPEN[LOCK_ROWS] = {
+    "...####.",
+    "..##..##",
+    "......##",
+    "########",
+    "###..###",
+    "###..###",
+    "########",
+    "########",
+};
+
 // --- Paleta ----------------------------------------------------------------
 struct Rgb {
     uint8_t r, g, b;
