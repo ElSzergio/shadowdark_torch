@@ -40,26 +40,32 @@ vez, y la que de verdad importa es la primera:
 1. **Grave.** Soplar es turbulencia de aire: casi toda su energía está por
    debajo de ~120 Hz. La voz vive muy por encima. Se filtra la señal con dos
    polos a 120 Hz y se exige que lo grave pese más de `BLOW_LF_RATIO_MIN`
-   (0,60) sobre el total.
-2. **Fuerte.** Por encima del 5% del fondo de escala del micro, y de 3× el
-   ruido ambiente medido en vivo (así vale igual en mesa callada que en un
-   bar).
-3. **Sostenido.** 600 ms seguidos. Esto descarta plosivas, palmadas y golpes
-   en la mesa, que son graves y fuertes pero duran 100 ms.
+   (0,45) sobre el total. **Éste es el filtro que de verdad separa soplar de
+   hablar**; los otros dos son de apoyo.
+2. **Fuerte.** Por encima del 5,5% del fondo de escala y de 6× el ruido
+   ambiente medido en vivo (así vale igual en mesa callada que en un bar).
+3. **Sostenido.** 320 ms seguidos, con histéresis: una vez empezado el
+   soplido los umbrales bajan al 70% hasta que para, porque un soplido real
+   da bandazos. Descarta plosivas, palmadas y golpes en la mesa, que son
+   graves y fuertes pero duran 100 ms.
 
-Medido en simulación (`tools/blowsim.py`), el margen entre soplar y hablar es
-holgado:
+Medido **en un CoreS3 real**, con el medidor de pantalla:
 
 | Sonido | Nivel | Peso de graves | ¿Apaga? |
 |---|---|---|---|
-| Soplar fuerte | 12,7% FS | **1,51** | sí |
-| Soplar con ganas | 11,3% FS | **1,33** | sí |
-| Hablar cerca | 1,5% FS | 0,18 | no |
-| Gritar (voz grave) | 9,3% FS | 0,21 | no |
-| Palmada / golpe en la mesa | 16-24% FS | 0,89-1,46 | no (duran 100 ms) |
+| Soplar fuerte | **55% FS** | **0,60** | sí |
+| Hablar cerca, como en partida | bajo | muy por debajo de 0,45 | no |
 
-Ojo: **gritar supera el umbral de nivel**. Quien distingue voz de soplido es
-el filtro de graves, no el volumen.
+Dos avisos que salieron de calibrar esto con el aparato delante:
+
+- **El volumen no distingue voz de soplido.** Gritar supera cualquier umbral
+  de nivel razonable. La primera versión miraba solo volumen y duración, y
+  hablar cerca de la mesa apagaba la antorcha a los 15 minutos.
+- **Los números del micro real no se parecen a los de la simulación.** El
+  micro del CoreS3 es unas 4 veces más sensible de lo que suponía el modelo y
+  además recorta los graves: el soplido da 0,60 de peso de graves donde la
+  simulación predecía 1,4. Si tocas umbrales, mídelos con el medidor, no con
+  `blowsim.py` a secas.
 
 **Pantalla en negro.** Además de pintarla de negro apaga la
 retroiluminación, para no iluminar la mesa en una partida a oscuras. En ese

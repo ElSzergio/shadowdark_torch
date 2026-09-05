@@ -49,17 +49,15 @@ static constexpr float    MIC_LP_ALPHA      = 0.046f;
 static constexpr float    BLOW_LF_RATIO_MIN = 0.45f;
 
 // (2) Nivel minimo, en % del fondo de escala del microfono.
-// 25%: medido en el CoreS3 real, soplar sobre el microfono llega al 55% del
-// fondo de escala con holgura. Con ese dato el nivel vuelve a ser un filtro
-// fuerte y no un tramite: hablar cerca no se acerca a la mitad de esto.
-// (La simulacion daba 12% para un soplido y por eso este umbral habia
-// quedado en 2%, donde no filtraba practicamente nada.)
-static constexpr float    BLOW_MIN_LEVEL_PCT = 25.0f;
+// 5.5%: el valor de la primera version (1800 cuentas RMS). Medido en mesa,
+// hablar cerca no se acerca al umbral de graves, asi que la seguridad la
+// lleva ese filtro y el nivel puede volver a ser permisivo: soplar apaga a
+// la primera y sin tener que pegarse al aparato.
+static constexpr float    BLOW_MIN_LEVEL_PCT = 5.5f;
 static constexpr float    BLOW_ABS_MIN_RMS   = 32767.0f * BLOW_MIN_LEVEL_PCT / 100.0f;
-// Ademas, tantas veces por encima del ruido ambiente medido en vivo. Bajo a
-// proposito: el filtro de graves ya hace la criba fina, y un multiplo alto
-// aqui llegaba a tapar el propio soplido.
-static constexpr float    BLOW_FLOOR_RATIO   = 3.0f;
+// Ademas, tantas veces por encima del ruido ambiente medido en vivo. Con un
+// soplido real al 55% del fondo de escala, este multiplo no llega a estorbar.
+static constexpr float    BLOW_FLOOR_RATIO   = 6.0f;
 // El nivel se alisa antes de comparar (~40 ms). Un soplido es casi todo grave
 // y a bloques de 16 ms su volumen baila mucho; sin alisar, el contador de
 // "sostenido" se reseteaba solo y no apagaba nunca.
@@ -73,7 +71,7 @@ static constexpr float    BLOW_HOLD_FACTOR  = 0.7f;
 // (3) Cuanto hay que sostenerlo, y a que ritmo se vacia el contador cuando
 // el sonido para. Vaciar mas rapido de lo que se llena evita que una serie de
 // golpes ritmicos en la mesa acabe sumando medio segundo.
-static constexpr uint32_t BLOW_SUSTAIN_MS   = 600;
+static constexpr uint32_t BLOW_SUSTAIN_MS   = 320;
 static constexpr float    BLOW_DECAY_MULT   = 1.5f;
 
 // --- Anti-rebotes ----------------------------------------------------------
