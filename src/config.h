@@ -34,7 +34,7 @@ static constexpr uint32_t MIC_SAMPLE_RATE   = 16000;
 static constexpr size_t   MIC_BLOCK_SAMPLES = 256;    // 16 ms por bloque
 static constexpr float    BLOW_FLOOR_RATIO  = 6.0f;   // veces sobre el ruido ambiente
 static constexpr float    BLOW_ABS_MIN_RMS  = 1800.0f;// suelo absoluto (RMS int16)
-static constexpr uint32_t BLOW_SUSTAIN_MS   = 320;    // hay que soplar sostenido
+static constexpr uint32_t BLOW_SUSTAIN_MS   = 640;    // hay que soplar sostenido
 
 // --- Anti-rebotes ----------------------------------------------------------
 static constexpr uint32_t TOUCH_DEBOUNCE_MS = 300;

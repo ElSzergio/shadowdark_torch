@@ -36,8 +36,9 @@ enciende nada.
 
 **Apagado soplando.** El umbral es **adaptativo**: se mide el ruido ambiente
 en vivo y se exige superarlo `BLOW_FLOOR_RATIO` (6×) durante
-`BLOW_SUSTAIN_MS` (320 ms) seguidos. Así funciona igual en una mesa callada
-que en un bar.
+`BLOW_SUSTAIN_MS` (640 ms) seguidos. Así funciona igual en una mesa callada
+que en un bar, y hay que soplar de verdad: medio segundo largo descarta
+palmadas, plosivas y golpes en la mesa, que duran una décima.
 
 **Pantalla en negro.** Además de pintarla de negro apaga la
 retroiluminación, para no iluminar la mesa en una partida a oscuras. En ese
