@@ -46,13 +46,13 @@ static constexpr float    MIC_LP_ALPHA      = 0.046f;
 // Cuanto debe pesar lo grave frente al total. Medido en simulacion:
 // soplido 1.3-1.5, palmada/golpe 1.0-1.4 (pero duran 100 ms), voz 0.11-0.21
 // incluso gritando. El margen entre soplar y hablar es enorme.
-static constexpr float    BLOW_LF_RATIO_MIN = 0.60f;
+static constexpr float    BLOW_LF_RATIO_MIN = 0.45f;
 
 // (2) Nivel minimo, en % del fondo de escala del microfono.
 // 5%: hablar cerca se queda en 1.5%, pero gritar llega al 10%, asi que el
 // nivel por si solo no distingue voz de soplido. Quien lo distingue es el
 // filtro de graves; este umbral esta para descartar retumbes lejanos.
-static constexpr float    BLOW_MIN_LEVEL_PCT = 5.0f;
+static constexpr float    BLOW_MIN_LEVEL_PCT = 2.0f;
 static constexpr float    BLOW_ABS_MIN_RMS   = 32767.0f * BLOW_MIN_LEVEL_PCT / 100.0f;
 // Ademas, tantas veces por encima del ruido ambiente medido en vivo. Bajo a
 // proposito: el filtro de graves ya hace la criba fina, y un multiplo alto
@@ -80,6 +80,13 @@ static constexpr uint32_t RELIGHT_LOCKOUT_MS = 1500;
 // ("OUT AT 15:23 - SNUFFED"), y el motivo del ultimo arranque. Ponlo en false
 // cuando ya confies en la antorcha.
 static constexpr bool SHOW_OUT_DEBUG = true;
+
+// Medidor del microfono en vivo bajo la barra, mientras arde:
+//   LVL ahora>pico %   nivel, en % del fondo de escala
+//   LF  ahora>pico     cuanto pesa lo grave (esto separa soplar de hablar)
+//   B   ms             contador de "sostenido"; si sube, los dos filtros pasan
+// Sopla y lee los picos: con esos numeros se ajustan los umbrales de arriba.
+static constexpr bool SHOW_MIC_METER = true;
 
 // Pantalla en negro: ademas de pintar de negro, apaga la retroiluminacion
 // para no iluminar la mesa. Ponlo en false si prefieres solo pintar negro.

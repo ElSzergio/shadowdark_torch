@@ -119,6 +119,34 @@ lo has roto.
 
 ## Calibrar el soplido
 
+Con `SHOW_MIC_METER = true` (viene activado) la antorcha **encendida** escribe
+bajo la barra lo que oye el micrófono, con retención de picos de 5 segundos
+para que puedas soplar primero y leer después:
+
+```
+LVL 2.4>18.2%   LF 0.31>1.48   B320
+ |    |          |    |          `- ms de soplido acumulados; si sube, pasa
+ |    |          |    `----------- pico de graves de los últimos 5 s
+ |    |          `---------------- graves ahora  (umbral: BLOW_LF_RATIO_MIN)
+ |    `-------------------------- pico de nivel de los últimos 5 s
+ `------------------------------- nivel ahora, % del fondo de escala
+```
+
+Enciende la antorcha, sopla fuerte y lee los dos picos:
+
+| Lo que veas al soplar | Qué significa |
+|---|---|
+| `MIC OFF` | El micrófono no arrancó. Ningún umbral lo va a arreglar |
+| `LVL` no pasa de ~1% | El micrófono capta muy flojo: baja `BLOW_MIN_LEVEL_PCT` |
+| `LF` no llega al umbral | Tu micro filtra los graves: baja `BLOW_LF_RATIO_MIN`, o sube `MIC_LP_ALPHA` para medir hasta más arriba |
+| `B` sube hasta 600 | Funciona: se apaga |
+
+Después habla cerca y mira `LF`: la distancia entre ese número y el que da al
+soplar es todo el margen que tienes. Pon `BLOW_LF_RATIO_MIN` a la mitad de
+camino, y `SHOW_MIC_METER = false` cuando esté ajustado.
+
+## Calibrar por el puerto serie
+
 El nivel del micrófono depende de tu unidad y de la sala. Si te cuesta
 apagarla o se apaga sola, pon `#define MIC_DEBUG 1` en
 [`src/main.cpp`](src/main.cpp), abre el monitor serie y sopla:
