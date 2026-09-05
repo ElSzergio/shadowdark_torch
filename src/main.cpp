@@ -17,10 +17,8 @@
 // ---------------------------------------------------------------------------
 
 #include <M5Unified.h>
-#include <esp_system.h>
 
 #include <cmath>
-#include <cstdio>
 #include <cstdlib>
 
 #include "config.h"
@@ -42,13 +40,6 @@ uint32_t g_burn_start_ms      = 0;  // instante de encendido (ajustado por pausa
 uint32_t g_burn_budget_ms     = 0;  // duracion de esta antorcha
 uint32_t g_saved_remaining_ms = 0;  // tiempo guardado al soplar (si se reanuda)
 uint32_t g_out_since_ms       = 0;  // cuando se apago (para el humo)
-uint32_t g_burned_ms          = 0;  // cuanto ardio, para el diagnostico
-float    g_last_lf_ratio      = 0.0f;
-float    g_mic_level          = 0.0f;  // nivel alisado, en cuentas RMS
-float    g_mic_peak_level     = 0.0f;  // picos de los ultimos 5 s, para poder
-float    g_mic_peak_lf        = 0.0f;  // leerlos despues de soplar
-uint32_t g_mic_peak_ms        = 0;
-const char* g_boot_reason     = "";
 uint32_t g_lockout_until_ms   = 0;  // no leer sensores justo tras apagarse
 
 // Pantalla en negro
@@ -122,14 +113,12 @@ void extinguish(uint32_t now, OutReason reason) {
     } else {
         g_saved_remaining_ms = 0;
     }
-    g_burned_ms        = now - g_burn_start_ms;
     g_state            = State::Out;
     g_out_reason       = reason;
     g_out_since_ms     = now;
     g_lockout_until_ms = now + RELIGHT_LOCKOUT_MS;
-    Serial.printf("[torch] apagada (%s) tras %lu s ardiendo; graves=%.2f\n",
-                  reason == OutReason::Blown ? "soplido" : "agotada",
-                  (unsigned long)(g_burned_ms / 1000), g_last_lf_ratio);
+    Serial.printf("[torch] apagada (%s)\n",
+                  reason == OutReason::Blown ? "soplido" : "agotada");
 }
 
 void updateTimer(uint32_t now) {
@@ -189,43 +178,17 @@ int32_t  g_blow_ms    = 0;
 constexpr uint32_t MIC_BLOCK_MS = (MIC_BLOCK_SAMPLES * 1000) / MIC_SAMPLE_RATE;
 
 void analyzeMicBlock(const int16_t* buf) {
-    // Media, para quitar la continua del bloque.
+    // Media (quita la continua) y despues valor eficaz.
     int64_t sum = 0;
     for (size_t i = 0; i < MIC_BLOCK_SAMPLES; ++i) sum += buf[i];
     const float mean = (float)sum / (float)MIC_BLOCK_SAMPLES;
 
-    // Energia total y energia grave, en la misma pasada. El paso bajo son dos
-    // polos en cascada a ~120 Hz; su estado sigue vivo entre bloques.
-    static float lp1 = 0.0f, lp2 = 0.0f;
-    float acc = 0.0f, acc_lf = 0.0f;
+    float acc = 0.0f;
     for (size_t i = 0; i < MIC_BLOCK_SAMPLES; ++i) {
         const float v = buf[i] - mean;
-        lp1 += (v - lp1) * MIC_LP_ALPHA;
-        lp2 += (lp1 - lp2) * MIC_LP_ALPHA;
         acc += v * v;
-        acc_lf += lp2 * lp2;
     }
-    const float rms    = sqrtf(acc / (float)MIC_BLOCK_SAMPLES);
-    const float rms_lf = sqrtf(acc_lf / (float)MIC_BLOCK_SAMPLES);
-    // Que fraccion del sonido es grave: soplar >1, hablar 0.1-0.25.
-    const float lf_ratio = (rms > 1.0f) ? (rms_lf / rms) : 0.0f;
-    g_last_lf_ratio = lf_ratio;
-
-    // Nivel alisado: el soplido es tan grave que en 16 ms cabe apenas un ciclo
-    // y el valor eficaz da bandazos. Sin esto el soplido no se sostiene.
-    g_mic_level += (rms - g_mic_level) * MIC_LEVEL_SMOOTH;
-    const float level = g_mic_level;
-
-    // Retencion de picos: soplar y leer la pantalla a la vez no se puede.
-    const uint32_t now_ms = millis();
-    if (now_ms - g_mic_peak_ms > 5000) {
-        g_mic_peak_ms    = now_ms;
-        g_mic_peak_level = level;
-        g_mic_peak_lf    = lf_ratio;
-    } else {
-        if (level > g_mic_peak_level) g_mic_peak_level = level;
-        if (lf_ratio > g_mic_peak_lf) g_mic_peak_lf = lf_ratio;
-    }
+    const float rms = sqrtf(acc / (float)MIC_BLOCK_SAMPLES);
 
     // El ruido ambiente sigue al nivel de la sala, pero un pico apenas lo
     // mueve: asi un soplido largo no "sube el liston" mientras soplas, y aun
@@ -236,16 +199,11 @@ void analyzeMicBlock(const int16_t* buf) {
 
     const float threshold = fmaxf(BLOW_ABS_MIN_RMS, g_noise_floor * BLOW_FLOOR_RATIO);
 
-    // Ya soplando, los umbrales bajan: entrar cuesta, mantenerse no.
-    const float hold     = (g_blow_ms > 0) ? BLOW_HOLD_FACTOR : 1.0f;
-    const float lvl_gate = threshold * hold;
-    const float lf_gate  = BLOW_LF_RATIO_MIN * hold;
-
-    if (level > lvl_gate && lf_ratio > lf_gate) {
+    if (rms > threshold) {
         g_blow_ms += (int32_t)MIC_BLOCK_MS;
     } else {
         // Tolera bajones breves, pero se vacia rapido al dejar de soplar.
-        g_blow_ms -= (int32_t)(MIC_BLOCK_MS * BLOW_DECAY_MULT);
+        g_blow_ms -= (int32_t)MIC_BLOCK_MS * 2;
         if (g_blow_ms < 0) g_blow_ms = 0;
     }
 
@@ -253,10 +211,8 @@ void analyzeMicBlock(const int16_t* buf) {
     static uint32_t last_dbg = 0;
     if (millis() - last_dbg > 500) {
         last_dbg = millis();
-        Serial.printf("[mic] nivel=%.1f%% FS  graves=%.2f  ruido=%.0f  "
-                      "umbral=%.1f%% FS  soplido=%ld ms\n",
-                      level * 100.0f / 32767.0f, lf_ratio, g_noise_floor,
-                      threshold * 100.0f / 32767.0f, (long)g_blow_ms);
+        Serial.printf("[mic] rms=%.0f  ruido=%.0f  umbral=%.0f  soplido=%ld ms\n",
+                      rms, g_noise_floor, threshold, (long)g_blow_ms);
     }
 #endif
 }
@@ -373,42 +329,11 @@ void drawMessage(const char* line1, const char* line2, bool blink_line2) {
     }
 }
 
-char g_pending_footnote[56] = "";
-inline void g_pending_footnote_set(const char* t) {
-    snprintf(g_pending_footnote, sizeof(g_pending_footnote), "%s", t);
-}
-
-// Linea pequena bajo la barra: el medidor del microfono mientras arde, o por
-// que se apago / como arranco el aparato cuando no arde.
-void drawFootnote(const char* txt) {
-    g_gfx->setFont(&fonts::Font0);
-    g_gfx->setTextSize(1);
-    g_gfx->setTextDatum(lgfx::textdatum_t::middle_center);
-    g_gfx->setTextColor(rgb({96, 84, 70}));
-    g_gfx->drawString(txt, SCREEN_W / 2, SCREEN_H - 11);
-}
-
 void render(uint32_t now) {
     ++g_frame_counter;
     g_gfx->fillScreen(TFT_BLACK);
 
     if (g_state == State::Burning) {
-        if (SHOW_MIC_METER) {
-            char m[56];
-            if (!M5.Mic.isEnabled()) {
-                // Si el microfono no arranco, soplar no puede funcionar por
-                // mucho que se toquen los umbrales.
-                snprintf(m, sizeof(m), "MIC OFF");
-            } else {
-                // ahora>pico/umbral, para ver de un vistazo cual se queda corto
-                snprintf(m, sizeof(m), "LVL %.0f>%.0f%%/%.0f  LF %.2f>%.2f/%.2f  B%ld",
-                         g_mic_level * 100.0f / 32767.0f,
-                         g_mic_peak_level * 100.0f / 32767.0f, BLOW_MIN_LEVEL_PCT,
-                         g_last_lf_ratio, g_mic_peak_lf, BLOW_LF_RATIO_MIN,
-                         (long)g_blow_ms);
-            }
-            g_pending_footnote_set(m);
-        }
         const int   segs = remainingSegments(now);
         const bool  dying = segs <= BAR_SEGMENTS / 10;  // ultimo 10%
 
@@ -437,23 +362,9 @@ void render(uint32_t now) {
             } else {
                 drawMessage("SNUFFED", "SHAKE TO RELIGHT", true);
             }
-            if (SHOW_OUT_DEBUG) {
-                const uint32_t secs = g_burned_ms / 1000;
-                char note[40];
-                snprintf(note, sizeof(note), "OUT AT %lu:%02lu - %s",
-                         (unsigned long)(secs / 60), (unsigned long)(secs % 60),
-                         g_out_reason == OutReason::Expired ? "BURNED" : "SNUFFED");
-                g_pending_footnote_set(note);
-            }
         } else {
             drawMessage("SHADOWDARK", "SHAKE TO LIGHT", true);
-            if (SHOW_OUT_DEBUG) g_pending_footnote_set(g_boot_reason);
         }
-    }
-
-    if (g_pending_footnote[0]) {
-        drawFootnote(g_pending_footnote);
-        g_pending_footnote[0] = '\0';
     }
 
     if (g_use_canvas) g_canvas.pushSprite(0, 0);
@@ -491,31 +402,12 @@ void pollTouch(uint32_t now) {
     g_blackout ? exitBlackout(now) : enterBlackout(now);
 }
 
+}  // namespace
+
 // ===========================================================================
 //  setup / loop
 // ===========================================================================
-// Si la antorcha "se apaga sola" y al mirar pone SHAKE TO LIGHT, es que el
-// aparato se reinicio: esto dice por que.
-const char* bootReason() {
-    switch (esp_reset_reason()) {
-        case ESP_RST_POWERON:  return "BOOT: POWER ON";
-        case ESP_RST_SW:       return "BOOT: SOFT RESET";
-        case ESP_RST_PANIC:    return "BOOT: CRASH";
-        case ESP_RST_INT_WDT:  return "BOOT: INT WATCHDOG";
-        case ESP_RST_TASK_WDT: return "BOOT: TASK WATCHDOG";
-        case ESP_RST_WDT:      return "BOOT: WATCHDOG";
-        case ESP_RST_BROWNOUT: return "BOOT: BROWNOUT";
-        case ESP_RST_DEEPSLEEP:return "BOOT: DEEP SLEEP";
-        default:               return "BOOT: UNKNOWN";
-    }
-}
-
-}  // namespace
-
 void setup() {
-    g_boot_reason = bootReason();
-    Serial.printf("[boot] %s\n", g_boot_reason);
-
     auto cfg = M5.config();
     cfg.internal_imu = true;   // BMI270: sacudida
     cfg.internal_mic = true;   // ES7210: soplido
@@ -531,8 +423,6 @@ void setup() {
     mic_cfg.sample_rate = MIC_SAMPLE_RATE;
     M5.Mic.config(mic_cfg);
     M5.Mic.begin();
-    Serial.printf("[boot] microfono %s\n",
-                  M5.Mic.isEnabled() ? "activo" : "NO ARRANCO (soplar no hara nada)");
 
     // Lienzo fuera de pantalla: se compone el cuadro entero y se vuelca de
     // golpe, asi la llama no parpadea al redibujar.

@@ -28,51 +28,13 @@ static constexpr uint32_t SHAKE_WINDOW_MS    = 1500;  // ventana para acumularlo
 static constexpr uint32_t IMU_POLL_MS        = 10;    // 100 Hz
 
 // --- Apagado soplando (microfono) ------------------------------------------
-// Un soplido tiene que cumplir TRES cosas a la vez. Con volumen y duracion
-// solos, una frase dicha cerca del aparato apagaba la antorcha.
-//
-//   1. Grave: el soplido es turbulencia de aire, casi toda su energia esta
-//      por debajo de ~120 Hz. La voz vive muy por encima. Este es el filtro
-//      que de verdad separa soplar de hablar.
-//   2. Fuerte: soplar sobre el microfono lo satura; hablar a un palmo rara
-//      vez pasa del 3-4% del fondo de escala.
-//   3. Sostenido: medio segundo. Descarta plosivas ("p", "t"), palmadas y
-//      golpes, que son grave y fuerte pero duran 50 ms.
+// El umbral es adaptativo: se compara con el ruido ambiente medido en vivo,
+// asi funciona igual en una mesa silenciosa que en un bar ruidoso.
 static constexpr uint32_t MIC_SAMPLE_RATE   = 16000;
 static constexpr size_t   MIC_BLOCK_SAMPLES = 256;    // 16 ms por bloque
-
-// (1) Paso bajo de dos polos. alpha = 1 - exp(-2*pi*fc/fs), aqui fc ~ 120 Hz.
-static constexpr float    MIC_LP_ALPHA      = 0.046f;
-// Cuanto debe pesar lo grave frente al total. Medido en simulacion:
-// soplido 1.3-1.5, palmada/golpe 1.0-1.4 (pero duran 100 ms), voz 0.11-0.21
-// incluso gritando. El margen entre soplar y hablar es enorme.
-static constexpr float    BLOW_LF_RATIO_MIN = 0.45f;
-
-// (2) Nivel minimo, en % del fondo de escala del microfono.
-// 5.5%: el valor de la primera version (1800 cuentas RMS). Medido en mesa,
-// hablar cerca no se acerca al umbral de graves, asi que la seguridad la
-// lleva ese filtro y el nivel puede volver a ser permisivo: soplar apaga a
-// la primera y sin tener que pegarse al aparato.
-static constexpr float    BLOW_MIN_LEVEL_PCT = 5.5f;
-static constexpr float    BLOW_ABS_MIN_RMS   = 32767.0f * BLOW_MIN_LEVEL_PCT / 100.0f;
-// Ademas, tantas veces por encima del ruido ambiente medido en vivo. Con un
-// soplido real al 55% del fondo de escala, este multiplo no llega a estorbar.
-static constexpr float    BLOW_FLOOR_RATIO   = 6.0f;
-// El nivel se alisa antes de comparar (~40 ms). Un soplido es casi todo grave
-// y a bloques de 16 ms su volumen baila mucho; sin alisar, el contador de
-// "sostenido" se reseteaba solo y no apagaba nunca.
-static constexpr float    MIC_LEVEL_SMOOTH   = 0.35f;
-
-// Histeresis: una vez empezado el soplido los dos umbrales se relajan a esta
-// fraccion, hasta que para. Entrar cuesta, mantenerse no: el soplido real da
-// bandazos y sin esto el contador se quedaba a medias en cada bache.
-static constexpr float    BLOW_HOLD_FACTOR  = 0.7f;
-
-// (3) Cuanto hay que sostenerlo, y a que ritmo se vacia el contador cuando
-// el sonido para. Vaciar mas rapido de lo que se llena evita que una serie de
-// golpes ritmicos en la mesa acabe sumando medio segundo.
-static constexpr uint32_t BLOW_SUSTAIN_MS   = 320;
-static constexpr float    BLOW_DECAY_MULT   = 1.5f;
+static constexpr float    BLOW_FLOOR_RATIO  = 6.0f;   // veces sobre el ruido ambiente
+static constexpr float    BLOW_ABS_MIN_RMS  = 1800.0f;// suelo absoluto (RMS int16)
+static constexpr uint32_t BLOW_SUSTAIN_MS   = 320;    // hay que soplar sostenido
 
 // --- Anti-rebotes ----------------------------------------------------------
 static constexpr uint32_t TOUCH_DEBOUNCE_MS = 300;
@@ -81,18 +43,6 @@ static constexpr uint32_t TOUCH_DEBOUNCE_MS = 300;
 static constexpr uint32_t RELIGHT_LOCKOUT_MS = 1500;
 
 // --- Opciones de comportamiento -------------------------------------------
-// Diagnostico: escribe bajo la barra por que se apago y a los cuantos minutos
-// ("OUT AT 15:23 - SNUFFED"), y el motivo del ultimo arranque. Ponlo en false
-// cuando ya confies en la antorcha.
-static constexpr bool SHOW_OUT_DEBUG = true;
-
-// Medidor del microfono en vivo bajo la barra, mientras arde:
-//   LVL ahora>pico %   nivel, en % del fondo de escala
-//   LF  ahora>pico     cuanto pesa lo grave (esto separa soplar de hablar)
-//   B   ms             contador de "sostenido"; si sube, los dos filtros pasan
-// Sopla y lee los picos: con esos numeros se ajustan los umbrales de arriba.
-static constexpr bool SHOW_MIC_METER = true;
-
 // Pantalla en negro: ademas de pintar de negro, apaga la retroiluminacion
 // para no iluminar la mesa. Ponlo en false si prefieres solo pintar negro.
 static constexpr bool BLACKOUT_TURNS_OFF_BACKLIGHT = true;
