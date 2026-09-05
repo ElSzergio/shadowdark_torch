@@ -236,7 +236,12 @@ void analyzeMicBlock(const int16_t* buf) {
 
     const float threshold = fmaxf(BLOW_ABS_MIN_RMS, g_noise_floor * BLOW_FLOOR_RATIO);
 
-    if (level > threshold && lf_ratio > BLOW_LF_RATIO_MIN) {
+    // Ya soplando, los umbrales bajan: entrar cuesta, mantenerse no.
+    const float hold     = (g_blow_ms > 0) ? BLOW_HOLD_FACTOR : 1.0f;
+    const float lvl_gate = threshold * hold;
+    const float lf_gate  = BLOW_LF_RATIO_MIN * hold;
+
+    if (level > lvl_gate && lf_ratio > lf_gate) {
         g_blow_ms += (int32_t)MIC_BLOCK_MS;
     } else {
         // Tolera bajones breves, pero se vacia rapido al dejar de soplar.
@@ -395,10 +400,12 @@ void render(uint32_t now) {
                 // mucho que se toquen los umbrales.
                 snprintf(m, sizeof(m), "MIC OFF");
             } else {
-                snprintf(m, sizeof(m), "LVL %.1f>%.1f%%  LF %.2f>%.2f  B%ld",
+                // ahora>pico/umbral, para ver de un vistazo cual se queda corto
+                snprintf(m, sizeof(m), "LVL %.0f>%.0f%%/%.0f  LF %.2f>%.2f/%.2f  B%ld",
                          g_mic_level * 100.0f / 32767.0f,
-                         g_mic_peak_level * 100.0f / 32767.0f,
-                         g_last_lf_ratio, g_mic_peak_lf, (long)g_blow_ms);
+                         g_mic_peak_level * 100.0f / 32767.0f, BLOW_MIN_LEVEL_PCT,
+                         g_last_lf_ratio, g_mic_peak_lf, BLOW_LF_RATIO_MIN,
+                         (long)g_blow_ms);
             }
             g_pending_footnote_set(m);
         }

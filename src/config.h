@@ -49,10 +49,12 @@ static constexpr float    MIC_LP_ALPHA      = 0.046f;
 static constexpr float    BLOW_LF_RATIO_MIN = 0.45f;
 
 // (2) Nivel minimo, en % del fondo de escala del microfono.
-// 5%: hablar cerca se queda en 1.5%, pero gritar llega al 10%, asi que el
-// nivel por si solo no distingue voz de soplido. Quien lo distingue es el
-// filtro de graves; este umbral esta para descartar retumbes lejanos.
-static constexpr float    BLOW_MIN_LEVEL_PCT = 2.0f;
+// 25%: medido en el CoreS3 real, soplar sobre el microfono llega al 55% del
+// fondo de escala con holgura. Con ese dato el nivel vuelve a ser un filtro
+// fuerte y no un tramite: hablar cerca no se acerca a la mitad de esto.
+// (La simulacion daba 12% para un soplido y por eso este umbral habia
+// quedado en 2%, donde no filtraba practicamente nada.)
+static constexpr float    BLOW_MIN_LEVEL_PCT = 25.0f;
 static constexpr float    BLOW_ABS_MIN_RMS   = 32767.0f * BLOW_MIN_LEVEL_PCT / 100.0f;
 // Ademas, tantas veces por encima del ruido ambiente medido en vivo. Bajo a
 // proposito: el filtro de graves ya hace la criba fina, y un multiplo alto
@@ -62,6 +64,11 @@ static constexpr float    BLOW_FLOOR_RATIO   = 3.0f;
 // y a bloques de 16 ms su volumen baila mucho; sin alisar, el contador de
 // "sostenido" se reseteaba solo y no apagaba nunca.
 static constexpr float    MIC_LEVEL_SMOOTH   = 0.35f;
+
+// Histeresis: una vez empezado el soplido los dos umbrales se relajan a esta
+// fraccion, hasta que para. Entrar cuesta, mantenerse no: el soplido real da
+// bandazos y sin esto el contador se quedaba a medias en cada bache.
+static constexpr float    BLOW_HOLD_FACTOR  = 0.7f;
 
 // (3) Cuanto hay que sostenerlo, y a que ritmo se vacia el contador cuando
 // el sonido para. Vaciar mas rapido de lo que se llena evita que una serie de

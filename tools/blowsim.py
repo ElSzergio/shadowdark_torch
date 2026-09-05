@@ -17,11 +17,17 @@ PCT     = cval("BLOW_MIN_LEVEL_PCT")
 RATIO   = cval("BLOW_FLOOR_RATIO")
 SUSTAIN = cval("BLOW_SUSTAIN_MS")
 SMOOTH  = cval("MIC_LEVEL_SMOOTH")
+HOLD    = cval("BLOW_HOLD_FACTOR")
 DECAY   = cval("BLOW_DECAY_MULT")
 ABS_MIN = 32767.0 * PCT / 100.0
 BLOCK_MS = BLOCK * 1000 // FS
 FS_MAX = 32767.0
-print(f"config: alisado={SMOOTH} decaimiento={DECAY}x fs={FS} bloque={BLOCK} ({BLOCK_MS} ms) alpha={ALPHA} "
+# El modelo sintetico daba 12.7% FS para un soplido fuerte; en el CoreS3 real
+# se miden 55%. Se aplica esa ganancia a TODAS las senales por igual: si el
+# microfono es mas sensible de lo que suponia el modelo, lo es para todo.
+MIC_GAIN = 55.0 / 12.7
+print(f"ganancia del micro x{MIC_GAIN:.1f} (calibrada con 55% FS medidos al soplar)")
+print(f"config: histeresis={HOLD} alisado={SMOOTH} decaimiento={DECAY}x fs={FS} bloque={BLOCK} ({BLOCK_MS} ms) alpha={ALPHA} "
       f"graves>{LF_MIN} nivel>{ABS_MIN:.0f} ({PCT}% FS) sostener>{SUSTAIN:.0f} ms\n")
 
 class Detector:
@@ -50,7 +56,8 @@ class Detector:
         self.floor = max(self.floor, 60.0)
         self.level += (rms - self.level) * SMOOTH
         thr = max(ABS_MIN, self.floor * RATIO)
-        if self.level > thr and lf > LF_MIN: self.blow_ms += BLOCK_MS
+        hold = HOLD if self.blow_ms > 0 else 1.0
+        if self.level > thr*hold and lf > LF_MIN*hold: self.blow_ms += BLOCK_MS
         else: self.blow_ms = max(0, self.blow_ms - int(BLOCK_MS*DECAY))
         if self.blow_ms >= SUSTAIN: self.fired = True
         self.peak_lf = max(self.peak_lf, lf); self.peak_rms = max(self.peak_rms, self.level)
@@ -89,7 +96,7 @@ def voice(n, f0, amp, breathy=0.15):
 def run(name, sig, floor=300.0):
     d = Detector(floor)
     for i in range(0, len(sig) - BLOCK, BLOCK):
-        d.block([v*FS_MAX for v in sig[i:i+BLOCK]])
+        d.block([max(-FS_MAX, min(FS_MAX, v*FS_MAX*MIC_GAIN)) for v in sig[i:i+BLOCK]])
     verdict = "APAGA  <-- " if d.fired else "no apaga"
     print(f"  {name:<34} rms_max={d.peak_rms:6.0f} ({d.peak_rms/FS_MAX*100:4.1f}% FS)"
           f"  graves_max={d.peak_lf:.2f}  {verdict}")
