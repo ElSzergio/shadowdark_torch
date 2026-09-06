@@ -26,6 +26,50 @@ one every 18 seconds. In the last 10% the flame shrinks and gutters; in the
 last 5% the bar pulses. When it reaches zero the torch goes out and you have
 to shake again to light a new one.
 
+## Getting started
+
+**What you need.** An **M5Stack CoreS3** and a USB-C cable that carries data
+(a charge-only cable will not be seen by your computer). The project leans on
+the CoreS3's touch screen, its BMI270 accelerometer and its ES7210
+microphones; other M5Unified boards with an IMU and a mic may work by
+changing `board` in [`platformio.ini`](platformio.ini), but the sensor
+thresholds in `config.h` were measured on a real CoreS3, so expect to
+recalibrate.
+
+**Install PlatformIO.** Either the *PlatformIO IDE* extension for VS Code, or
+the standalone CLI:
+
+```bash
+pip install -U platformio
+```
+
+**Build and flash.** Plug the CoreS3 in and, from the project folder:
+
+```bash
+pio run -t upload && pio device monitor
+```
+
+The first build downloads the ESP32 toolchain and M5Unified, so it takes a
+few minutes; later builds take seconds. There is nothing else to configure —
+the serial port is detected on its own, and the board's PSRAM, partitions and
+USB-CDC come from the `m5stack-cores3` board definition.
+
+**First run.** The screen shows an unlit torch and `SHAKE TO LIGHT`. Shake
+the device firmly a few times and the flame catches; the bar starts draining,
+one segment every 18 seconds. To put it out, **tap the screen first** — that
+opens the padlock under the bar — and then blow hard on the microphone holes
+until it goes out.
+
+### If something goes wrong
+
+| Symptom | What to do |
+|---|---|
+| `pio: command not found` | The VS Code extension installs it at `~/.platformio/penv/bin/pio` — add that to your `PATH` or call it by full path |
+| Upload fails or no port is found | Try another USB-C cable first; if it still fails, put the CoreS3 into download mode (M5Stack's CoreS3 docs describe the button sequence) and upload again |
+| Blowing does nothing | The padlock is closed: tap the screen to arm it. If it is already open, see [Calibrating the blow](#calibrating-the-blow) |
+| It snuffs itself on any noise | Raise `BLOW_ABS_MIN_RMS` or `BLOW_FLOOR_RATIO` in [`src/config.h`](src/config.h) |
+| Shaking will not light it | Lower `SHAKE_PEAK_G`, or drop `SHAKE_PEAKS_NEEDED` to 2 |
+
 ## Implementation notes
 
 **Shake to light.** A single acceleration spike is not enough: it takes
@@ -67,12 +111,6 @@ them is a one-line edit:
 
 The second row matters if at your table you snuff the torch to *stow* it:
 with `RESUME_AFTER_BLOWOUT = true`, blowing stops burning torch.
-
-## Build and flash
-
-```bash
-pio run -t upload && pio device monitor
-```
 
 ## Calibrating the blow
 
