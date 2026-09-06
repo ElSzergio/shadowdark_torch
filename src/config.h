@@ -2,70 +2,70 @@
 #include <cstdint>
 
 // ---------------------------------------------------------------------------
-// Shadowdark Torch — parametros ajustables
-// Todo lo que quieras calibrar en mesa esta en este archivo.
+// Shadowdark Torch — tunable parameters
+// Everything you might want to calibrate at the table lives in this file.
 // ---------------------------------------------------------------------------
 
-// --- Duracion de la antorcha ----------------------------------------------
-// Shadowdark: una antorcha dura 1 hora de tiempo real.
+// --- Torch duration --------------------------------------------------------
+// Shadowdark: a torch lasts 1 hour of real time.
 static constexpr uint32_t TORCH_DURATION_MS = 60UL * 60UL * 1000UL;  // 60 min
 
-// La barra se divide en 200 fragmentos -> 1 fragmento = 18 s.
+// The bar is split into 200 segments -> 1 segment = 18 s.
 static constexpr int      BAR_SEGMENTS   = 200;
 static constexpr uint32_t MS_PER_SEGMENT = TORCH_DURATION_MS / BAR_SEGMENTS;
 
-// --- Refresco de pantalla --------------------------------------------------
-static constexpr uint32_t FRAME_INTERVAL_MS = 250;   // 4 fps, anima el fuego
+// --- Display refresh -------------------------------------------------------
+static constexpr uint32_t FRAME_INTERVAL_MS = 250;   // 4 fps, animates the fire
 static constexpr uint8_t  SCREEN_BRIGHTNESS = 160;   // 0-255
 
-// --- Encendido por agitacion (acelerometro) --------------------------------
-// Para que un golpe a la mesa NO encienda la antorcha se exige una sacudida
-// real: varios picos fuertes seguidos dentro de una ventana de tiempo.
-static constexpr float    SHAKE_PEAK_G       = 1.60f; // g por encima de 1g en reposo
-static constexpr uint8_t  SHAKE_PEAKS_NEEDED = 3;     // picos para encender
-static constexpr uint32_t SHAKE_PEAK_GAP_MS  = 70;    // separacion minima entre picos
-static constexpr uint32_t SHAKE_WINDOW_MS    = 1500;  // ventana para acumularlos
+// --- Shake to light (accelerometer) ----------------------------------------
+// So a knock on the table does NOT light the torch, a real shake is required:
+// several strong peaks in a row within a time window.
+static constexpr float    SHAKE_PEAK_G       = 1.60f; // g above the 1g at rest
+static constexpr uint8_t  SHAKE_PEAKS_NEEDED = 3;     // peaks needed to light
+static constexpr uint32_t SHAKE_PEAK_GAP_MS  = 70;    // minimum gap between peaks
+static constexpr uint32_t SHAKE_WINDOW_MS    = 1500;  // window to collect them
 static constexpr uint32_t IMU_POLL_MS        = 10;    // 100 Hz
 
-// --- Apagado soplando (microfono) ------------------------------------------
-// El umbral es adaptativo: se compara con el ruido ambiente medido en vivo,
-// asi funciona igual en una mesa silenciosa que en un bar ruidoso.
+// --- Blow to snuff (microphone) --------------------------------------------
+// The threshold is adaptive: it is compared against the ambient noise measured
+// live, so it works the same at a quiet table and in a noisy bar.
 static constexpr uint32_t MIC_SAMPLE_RATE   = 16000;
-static constexpr size_t   MIC_BLOCK_SAMPLES = 256;    // 16 ms por bloque
-static constexpr float    BLOW_FLOOR_RATIO  = 6.0f;   // veces sobre el ruido ambiente
-static constexpr float    BLOW_ABS_MIN_RMS  = 1800.0f;// suelo absoluto (RMS int16)
-static constexpr uint32_t BLOW_SUSTAIN_MS   = 640;    // hay que soplar sostenido
+static constexpr size_t   MIC_BLOCK_SAMPLES = 256;    // 16 ms per block
+static constexpr float    BLOW_FLOOR_RATIO  = 6.0f;   // times above ambient noise
+static constexpr float    BLOW_ABS_MIN_RMS  = 1800.0f;// absolute floor (int16 RMS)
+static constexpr uint32_t BLOW_SUSTAIN_MS   = 640;    // the blow must be sustained
 
-// --- Anti-rebotes ----------------------------------------------------------
+// --- Debouncing ------------------------------------------------------------
 static constexpr uint32_t TOUCH_DEBOUNCE_MS = 300;
-// Tras apagarse, ignora sensores un momento (el mismo soplido/sacudida no
-// debe volver a encenderla en el acto).
+// After going out, ignore the sensors for a moment (the same blow or shake
+// must not light it straight back up).
 static constexpr uint32_t RELIGHT_LOCKOUT_MS = 1500;
 
-// --- Opciones de comportamiento -------------------------------------------
-// Al encender, soplar viene bloqueado: hay que tocar la pantalla para armarlo.
-// Asi ningun ruido de mesa puede apagar la antorcha sin querer. Ponlo en
-// false si prefieres que nazca armada y el toque sirva para proteger.
+// --- Behaviour options -----------------------------------------------------
+// On lighting, blowing starts locked out: you must tap the screen to arm it.
+// That way no table noise can put the torch out by accident. Set it to false
+// if you would rather it be born armed and the tap be what protects it.
 static constexpr bool BLOW_LOCKED_ON_LIGHT = true;
 
-// Al soplar, la antorcha se apaga por completo y la proxima sacudida arranca
-// una antorcha nueva de 60 min. Ponlo en true si en tu mesa preferis que
-// soplar solo "guarde" la antorcha y al reencender siga el tiempo restante.
+// When blown out, the torch is spent entirely and the next shake starts a
+// fresh 60 min torch. Set this to true if at your table blowing should merely
+// "stow" the torch and relighting should resume the remaining time.
 static constexpr bool RESUME_AFTER_BLOWOUT = false;
 
-// --- Geometria de pantalla (CoreS3: 320x240) -------------------------------
+// --- Screen geometry (CoreS3: 320x240) -------------------------------------
 static constexpr int SCREEN_W = 320;
 static constexpr int SCREEN_H = 240;
 
-static constexpr int   ART_SCALE  = 7;    // 1 pixel de arte = 7 px de pantalla
-static constexpr int   ART_TOP_Y  = 6;    // borde superior del dibujo
+static constexpr int   ART_SCALE  = 7;    // 1 art pixel = 7 screen px
+static constexpr int   ART_TOP_Y  = 6;    // top edge of the drawing
 
-static constexpr float BAR_WIDTH_RATIO = 0.85f;                       // 85% del ancho
+static constexpr float BAR_WIDTH_RATIO = 0.85f;                       // 85% of the width
 static constexpr int   BAR_W = (int)(SCREEN_W * BAR_WIDTH_RATIO);     // 272 px
 static constexpr int   BAR_X = (SCREEN_W - BAR_W) / 2;                // 24
 static constexpr int   BAR_Y = 190;
 static constexpr int   BAR_H = 24;
 
-// Candado, centrado bajo la barra.
+// Padlock, centred below the bar.
 static constexpr int   LOCK_SCALE = 3;
 static constexpr int   LOCK_Y     = 216;

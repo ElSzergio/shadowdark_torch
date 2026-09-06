@@ -1,104 +1,102 @@
 # Shadowdark Torch — M5Stack CoreS3
 
-Contador de antorcha para **Shadowdark RPG**. En Shadowdark una antorcha dura
-**una hora de tiempo real**: este cacharro la lleva por ti en la mesa, sin
-cronómetros de móvil ni cuentas mentales.
+A torch timer for **Shadowdark RPG**. In Shadowdark a torch lasts **one hour
+of real time**: this gadget keeps track of it for you at the table, with no
+phone timers and no counting in your head.
 
 ```
-      /\        antorcha en pixel art, la llama se anima a 4 fps
+      /\        pixel-art torch, the flame animates at 4 fps
      /  \
     ( ** )
       ||
-   [========------------]   barra = 200 fragmentos, 85% del ancho
+   [========------------]   bar = 200 segments, 85% of the width
 ```
 
-## Cómo se juega
+## How you play it
 
-| Acción | Gesto |
+| Action | Gesture |
 |---|---|
-| **Encender** | Sacude el CoreS3 con ganas (varios meneos seguidos) |
-| **Apagar** | Sopla fuerte sobre los micrófonos del lateral |
-| **Se consume** | Sola, a los 60 minutos |
-| **Armar el soplido** | Un toque en la pantalla; otro vuelve a protegerla |
+| **Light** | Shake the CoreS3 like you mean it (several shakes in a row) |
+| **Snuff** | Blow hard over the microphones on the side |
+| **Burns down** | On its own, after 60 minutes |
+| **Arm the blow** | A tap on the screen; another tap protects it again |
 
-La barra **no muestra minutos**, solo cuánta antorcha queda: 200 fragmentos,
-uno cada 18 segundos. En el último 10% la llama se encoge y se apaga a
-ratos; en el último 5% la barra late. Cuando llega a cero la antorcha se
-apaga y hay que volver a sacudir para prender una nueva.
+The bar **does not show minutes**, only how much torch is left: 200 segments,
+one every 18 seconds. In the last 10% the flame shrinks and gutters; in the
+last 5% the bar pulses. When it reaches zero the torch goes out and you have
+to shake again to light a new one.
 
-## Detalles de implementación
+## Implementation notes
 
-**Encendido por sacudida.** No basta un pico de aceleración: se exigen
-`SHAKE_PEAKS_NEEDED` (3) picos de más de `SHAKE_PEAK_G` (1,6 g sobre el
-reposo) separados al menos 70 ms, todos dentro de una ventana de 1,5 s. Un
-golpe a la mesa o alguien que coge el aparato produce un único pico y no
-enciende nada.
+**Shake to light.** A single acceleration spike is not enough: it takes
+`SHAKE_PEAKS_NEEDED` (3) peaks above `SHAKE_PEAK_G` (1.6 g over the resting
+level), at least 70 ms apart, all inside a 1.5 s window. A knock on the table
+or someone picking the device up produces a single peak and lights nothing.
 
-**Apagado soplando.** El umbral es **adaptativo**: se mide el ruido ambiente
-en vivo y se exige superarlo `BLOW_FLOOR_RATIO` (6×) durante
-`BLOW_SUSTAIN_MS` (640 ms) seguidos. Así funciona igual en una mesa callada
-que en un bar, y hay que soplar de verdad: medio segundo largo descarta
-palmadas, plosivas y golpes en la mesa, que duran una décima.
+**Blow to snuff.** The threshold is **adaptive**: the ambient noise is
+measured live and the sound has to beat it by `BLOW_FLOOR_RATIO` (6×) for
+`BLOW_SUSTAIN_MS` (640 ms) straight. That way it works the same at a quiet
+table and in a bar, and you have to really blow: a long half-second rules out
+claps, plosives and thumps on the table, which last a tenth of that.
 
-**Candado del soplido.** Una antorcha recién encendida **no se puede apagar
-soplando**: hace falta tocar la pantalla para armarla. El candado bajo la
-barra lo dice sin palabras — cerrado y apagado significa a salvo, abierto y
-ámbar significa que el próximo soplido la apaga.
+**The blow padlock.** A freshly lit torch **cannot be blown out**: you have to
+tap the screen to arm it. The padlock under the bar says so without words —
+closed and dim means safe, open and amber means the next blow puts it out.
 
-Es la defensa contra el problema de verdad de este cacharro: el micrófono no
-distingue un soplido de cualquier otro ruido fuerte y cercano, así que en vez
-de afinar umbrales hasta la extenuación, la antorcha simplemente no escucha
-hasta que tú se lo pides. Apagarla pasa a ser deliberado: tocar y soplar.
+That is the defence against this gadget's real problem: the microphone cannot
+tell a blow from any other loud, close noise, so instead of tuning thresholds
+to exhaustion, the torch simply does not listen until you ask it to. Snuffing
+becomes deliberate: tap, then blow.
 
-El candado vuelve a ponerse solo cada vez que se enciende una antorcha nueva,
-así que no se queda armado de una escena para otra.
+The padlock closes itself again every time a new torch is lit, so it never
+stays armed from one scene into the next.
 
-**Sin parpadeos.** Cada cuadro se compone entero en un lienzo en PSRAM y se
-vuelca de golpe.
+**No flicker.** Every frame is composed whole on a canvas in PSRAM and
+blitted in one go.
 
-## Decisiones que tomé por ti
+## Decisions made for you
 
-Están todas en [`src/config.h`](src/config.h) como constantes, cambiar
-cualquiera es una línea:
+They all live in [`src/config.h`](src/config.h) as constants; changing any of
+them is a one-line edit:
 
-| Decisión | Valor | Alternativa |
+| Decision | Value | Alternative |
 |---|---|---|
-| Cada antorcha **nace protegida**: hay que tocar para poder soplarla | `BLOW_LOCKED_ON_LIGHT = true` | `false` nace armada y el toque sirve para proteger |
-| Soplar **apaga la antorcha del todo**: la siguiente sacudida enciende una nueva de 60 min | `RESUME_AFTER_BLOWOUT = false` | `true` guarda el tiempo restante y lo reanuda al reencender |
-| Los rótulos están en inglés (`SHAKE TO LIGHT`, `BURNED OUT`) | — | `drawMessage(...)` en `src/main.cpp` |
+| Every torch is **born protected**: you must tap before you can blow it out | `BLOW_LOCKED_ON_LIGHT = true` | `false` is born armed, and the tap is what protects it |
+| Blowing **spends the torch entirely**: the next shake lights a new 60 min one | `RESUME_AFTER_BLOWOUT = false` | `true` stores the remaining time and resumes it on relighting |
+| The on-screen labels are in English (`SHAKE TO LIGHT`, `BURNED OUT`) | — | `drawMessage(...)` in `src/main.cpp` |
 
-La segunda fila importa si en tu mesa apagáis la antorcha para *guardarla*:
-con `RESUME_AFTER_BLOWOUT = true` soplar deja de gastar antorcha.
+The second row matters if at your table you snuff the torch to *stow* it:
+with `RESUME_AFTER_BLOWOUT = true`, blowing stops burning torch.
 
-## Compilar y flashear
+## Build and flash
 
 ```bash
 pio run -t upload && pio device monitor
 ```
 
-## Calibrar el soplido
+## Calibrating the blow
 
-El nivel del micrófono depende de tu unidad y de la sala. Si te cuesta
-apagarla o se apaga sola, pon `#define MIC_DEBUG 1` en
-[`src/main.cpp`](src/main.cpp), abre el monitor serie y sopla:
-
-```
-[mic] rms=412  ruido=380  umbral=2280  soplido=0 ms
-[mic] rms=9840 ruido=381  umbral=2286  soplido=176 ms   <- soplando
-```
-
-Ajusta `BLOW_ABS_MIN_RMS` (suelo absoluto) y `BLOW_FLOOR_RATIO` en
-`src/config.h` a partir de esos números. Lo mismo con `SHAKE_PEAK_G` si la
-sacudida te resulta dura o blanda.
-
-## Estructura
+The microphone level depends on your unit and on the room. If it is hard to
+snuff, or it snuffs itself, set `#define MIC_DEBUG 1` in
+[`src/main.cpp`](src/main.cpp), open the serial monitor and blow:
 
 ```
-src/config.h      todos los parámetros ajustables
-src/torch_art.h   el pixel art (4 fotogramas de llama + cuerpo + apagada)
-src/main.cpp      máquina de estados, sensores y dibujo
+[mic] rms=412  noise=380  thresh=2280  blow=0 ms
+[mic] rms=9840 noise=381  thresh=2286  blow=176 ms   <- blowing
 ```
 
-El arte son cadenas de texto, un carácter por píxel: se edita a mano sin
-herramientas. La rejilla es de 16 columnas y cada píxel se dibuja a
-`ART_SCALE` (7) píxeles de pantalla.
+Tune `BLOW_ABS_MIN_RMS` (absolute floor) and `BLOW_FLOOR_RATIO` in
+`src/config.h` from those numbers. Same goes for `SHAKE_PEAK_G` if the shake
+feels too stiff or too loose.
+
+## Layout
+
+```
+src/config.h      every tunable parameter
+src/torch_art.h   the pixel art (4 flame frames + body + snuffed)
+src/main.cpp      state machine, sensors and drawing
+```
+
+The art is plain strings, one character per pixel: edited by hand, no tools
+needed. The grid is 16 columns wide and each pixel is drawn at `ART_SCALE`
+(7) screen pixels.
