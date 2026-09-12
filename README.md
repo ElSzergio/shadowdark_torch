@@ -95,6 +95,12 @@ becomes deliberate: tap, then blow.
 The padlock closes itself again every time a new torch is lit, so it never
 stays armed from one scene into the next.
 
+**Battery dots.** The 20 grey dots either side of the padlock are the
+battery, one per 5% of charge, read left to right; they go out from the right
+as it drains, like the bar. No percentage, same as the bar has no minutes. The
+fuel gauge is read every 10 s, and a dot that went out only comes back once the
+charge is `BATTERY_HYST_PCT` (2%) past its edge, so it never blinks.
+
 **No flicker.** Every frame is composed whole on a canvas in PSRAM and
 blitted in one go.
 

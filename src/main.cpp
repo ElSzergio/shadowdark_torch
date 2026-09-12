@@ -13,6 +13,7 @@
 //    * PADLOCK : blowing only snuffs it while armed. A screen tap arms and
 //                disarms it; a fresh torch is born locked, so no table noise
 //                can put it out by accident.
+//    * BATTERY : 20 grey dots beside the padlock, one per 5% of charge.
 //
 //  The view refreshes every 250 ms, animating the flame.
 // ---------------------------------------------------------------------------
@@ -236,6 +237,37 @@ bool pollBlow() {
 }
 
 // ===========================================================================
+//  Battery (fuel gauge)
+//  One dot per 5% of charge. Dots go out as soon as the charge drops, but only
+//  come back once it is clearly past the edge, so they never blink.
+// ===========================================================================
+int      g_battery_dots    = -1;  // dots shown; -1 = no reading yet
+uint32_t g_battery_next_ms = 0;
+
+// Dots for a charge level, rounded up: 1% still shows one dot.
+int batteryDotsFor(int level) {
+    if (level <= 0) return 0;
+    if (level >= 100) return BATTERY_DOTS;
+    return (level * BATTERY_DOTS + 99) / 100;
+}
+
+void pollBattery(uint32_t now) {
+    if ((int32_t)(now - g_battery_next_ms) < 0) return;
+    g_battery_next_ms = now + BATTERY_POLL_MS;
+
+    const int level = M5.Power.getBatteryLevel();
+    if (level < 0) return;  // no reading: keep what is shown
+
+    const int dots    = batteryDotsFor(level);
+    const int clearly = batteryDotsFor(level - BATTERY_HYST_PCT);
+    if (g_battery_dots < 0 || dots < g_battery_dots) {
+        g_battery_dots = dots;     // first reading, or a dot spent
+    } else if (clearly > g_battery_dots) {
+        g_battery_dots = clearly;  // recharged well past the edge
+    }
+}
+
+// ===========================================================================
 //  Drawing
 // ===========================================================================
 void drawArtRows(const char* const* rows, int nrows, int y0, float dim) {
@@ -345,6 +377,20 @@ void drawLock(bool locked) {
     }
 }
 
+// Battery dots on the padlock row, read left to right: they go out from the
+// right, the same way the bar drains.
+void drawBattery() {
+    const uint16_t col  = rgb({84, 78, 72});
+    const int      half = BATTERY_DOTS / 2;
+    for (int i = 0; i < g_battery_dots; ++i) {
+        const int x = (i < half)
+            ? BAR_X + i * BATTERY_DOT_PITCH
+            : SCREEN_W - BAR_X - BATTERY_DOT_SIZE -
+                  (BATTERY_DOTS - 1 - i) * BATTERY_DOT_PITCH;
+        g_gfx->fillRect(x, BATTERY_DOT_Y, BATTERY_DOT_SIZE, BATTERY_DOT_SIZE, col);
+    }
+}
+
 void render(uint32_t now) {
     ++g_frame_counter;
     g_gfx->fillScreen(TFT_BLACK);
@@ -383,6 +429,8 @@ void render(uint32_t now) {
             drawMessage("SHADOWDARK", "SHAKE TO LIGHT", true);
         }
     }
+
+    drawBattery();
 
     if (g_use_canvas) g_canvas.pushSprite(0, 0);
 }
@@ -440,6 +488,7 @@ void setup() {
     }
 
     srand(millis());
+    pollBattery(millis());  // first reading, so the dots are there from boot
 
     Serial.println("[boot] Shadowdark Torch ready. Shake to light.");
     render(millis());
@@ -450,6 +499,7 @@ void loop() {
     const uint32_t now = millis();
 
     pollTouch(now);
+    pollBattery(now);
 
     updateTimer(now);
 

@@ -36,6 +36,14 @@ static constexpr float    BLOW_FLOOR_RATIO  = 6.0f;   // times above ambient noi
 static constexpr float    BLOW_ABS_MIN_RMS  = 1800.0f;// absolute floor (int16 RMS)
 static constexpr uint32_t BLOW_SUSTAIN_MS   = 640;    // the blow must be sustained
 
+// --- Battery dots ----------------------------------------------------------
+// One grey dot per 5% of charge; they go out one by one as the battery drains.
+static constexpr int      BATTERY_DOTS     = 20;
+static constexpr uint32_t BATTERY_POLL_MS  = 10000;  // the fuel gauge barely moves
+// A spent dot only comes back once the charge is this far past its edge, so a
+// reading wobbling on a boundary does not make the dot blink.
+static constexpr int      BATTERY_HYST_PCT = 2;
+
 // --- Debouncing ------------------------------------------------------------
 static constexpr uint32_t TOUCH_DEBOUNCE_MS = 300;
 // After going out, ignore the sensors for a moment (the same blow or shake
@@ -69,3 +77,10 @@ static constexpr int   BAR_H = 24;
 // Padlock, centred below the bar.
 static constexpr int   LOCK_SCALE = 3;
 static constexpr int   LOCK_Y     = 216;
+
+// Battery dots, on the padlock row: 10 to its left, 10 to its right, spanning
+// the bar's width. Level with the padlock's body rather than tucked under the
+// bar, so they do not read as tick marks of the torch bar.
+static constexpr int   BATTERY_DOT_SIZE  = 3;    // = LOCK_SCALE, one padlock pixel
+static constexpr int   BATTERY_DOT_PITCH = 12;
+static constexpr int   BATTERY_DOT_Y     = 231;
